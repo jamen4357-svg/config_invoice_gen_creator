@@ -10,6 +10,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from .models import FooterInfo, FontInfo
+from pathlib import Path
+import tempfile
 
 
 class FooterDetectorError(Exception):
@@ -250,3 +252,45 @@ class FooterDetector:
                 header_candidates.append(row)
         
         return header_candidates
+
+
+def main():
+    # --- existing argument parsing code ---
+    args = parser.parse_args()
+
+    # --- Create output directory ---
+    excel_file_path = Path(args.excel_file)
+    output_dir = BASE_DIR / "result" / excel_file_path.stem
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[ORCHESTRATOR] Output will be saved in: {output_dir}")
+
+    # Step 1: Analyze the Excel File
+    temp_analysis_file = tempfile.NamedTemporaryFile(
+        mode='w',
+        delete=False,
+        suffix=".json",
+        prefix="analysis_",
+        dir=str(output_dir)  # <-- Change this line
+    ).name
+
+    # Step 1.5: Extract and log headers
+    output_base_name = output_dir / excel_file_path.stem
+    header_log_path = extract_and_log_headers(analysis_output_path, str(output_base_name), args.interactive)
+
+    # Step 2: Generate the Configuration File
+    if args.output:
+        final_output_path = output_dir / args.output
+    else:
+        final_output_path = output_dir / f"{excel_file_path.stem}_config.json"
+
+    # Step 3: Generate XLSX file if requested
+    if args.generate_xlsx and XLSX_GENERATOR_AVAILABLE:
+        xlsx_output_path = args.xlsx_output
+        if not xlsx_output_path:
+            xlsx_output_path = output_dir / f"{excel_file_path.stem}_processed.xlsx"
+
+        xlsx_output = generator.generate_processed_xlsx(
+            args.excel_file,
+            str(xlsx_output_path), # <-- Make sure to use the new path
+            #...
+        )

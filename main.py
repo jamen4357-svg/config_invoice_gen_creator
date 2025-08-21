@@ -348,7 +348,8 @@ def run_command(command, verbose=False):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        encoding='utf-8'
+        encoding='utf-8',
+        errors='replace'
     )
 
     stdout, stderr = process.communicate()
@@ -390,7 +391,7 @@ This tool streamlines the process of creating an invoice configuration by:
     )
     parser.add_argument(
         '-o', '--output',
-        help='Path for the final generated configuration file. (Default: {excel_file_name}_config.json)',
+        help='Path for the final generated configuration file. (Default: result/{excel_file_name}/{excel_file_name}_config.json)',
         metavar='FINAL_CONFIG_PATH'
     )
     parser.add_argument(
@@ -421,10 +422,16 @@ This tool streamlines the process of creating an invoice configuration by:
     )
     parser.add_argument(
         '--xlsx-output',
-        help='Output path for the generated XLSX file (optional)'
+        help='Output path for the generated XLSX file (Default: result/{excel_file_name}/{excel_file_name}_processed.xlsx)'
     )
 
     args = parser.parse_args()
+
+    # --- Create output directory ---
+    excel_file_path = Path(args.excel_file)
+    output_dir = BASE_DIR / "result" / excel_file_path.stem
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[ORCHESTRATOR] Output will be saved in: {output_dir}")
 
     # --- Step 1: Analyze the Excel File ---
     print("[ORCHESTRATOR] Step 1: Analyzing Excel file...")
@@ -435,13 +442,14 @@ This tool streamlines the process of creating an invoice configuration by:
         delete=False,
         suffix=".json",
         prefix="analysis_",
-        dir="."
+        dir=str(output_dir)
     ).name
 
     analysis_output_path = temp_analysis_file
 
     analyze_command = [
         sys.executable,
+        '-X', 'utf8',
         str(ANALYZE_SCRIPT_PATH),
         args.excel_file,
         '--json',
@@ -463,31 +471,28 @@ This tool streamlines the process of creating an invoice configuration by:
     print("\n[ORCHESTRATOR] Step 1.5: Extracting and logging headers...")
     
     # Determine the output base name for header logging
-    if args.output:
-        output_base_name = Path(args.output).stem
-    else:
-        output_base_name = Path(args.excel_file).stem
+    output_base_name = output_dir / excel_file_path.stem
     
-    header_log_path = extract_and_log_headers(analysis_output_path, output_base_name, args.interactive)
+    header_log_path = extract_and_log_headers(analysis_output_path, str(output_base_name), args.interactive)
 
     # --- Step 2: Generate the Configuration File ---
     print("\n[ORCHESTRATOR] Step 2: Generating final configuration file...")
 
     # Determine the final output path
     if args.output:
-        final_output_path = args.output
+        final_output_path = output_dir / args.output
     else:
-        input_file_stem = Path(args.excel_file).stem
-        final_output_path = f"{input_file_stem}_config.json"
+        final_output_path = output_dir / f"{excel_file_path.stem}_config.json"
 
     generate_command = [
         sys.executable,
+        '-X', 'utf8',
         str(GENERATE_SCRIPT_PATH),
         analysis_output_path,
         '-t',
         str(args.template),
         '-o',
-        final_output_path
+        str(final_output_path)
     ]
 
     if args.verbose:
@@ -510,9 +515,15 @@ This tool streamlines the process of creating an invoice configuration by:
         print("\n[ORCHESTRATOR] Step 3: Generating processed XLSX file...")
         try:
             generator = XLSXGenerator()
+            
+            if args.xlsx_output:
+                xlsx_output_path = output_dir / args.xlsx_output
+            else:
+                xlsx_output_path = output_dir / f"{excel_file_path.stem}_processed.xlsx"
+
             xlsx_output = generator.generate_processed_xlsx(
                 args.excel_file,
-                args.xlsx_output,
+                str(xlsx_output_path),
                 enable_text_replacement=True,
                 enable_row_removal=True
             )

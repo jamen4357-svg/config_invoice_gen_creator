@@ -141,7 +141,7 @@ def validate_input_files(args):
     # Try to load and validate JSON files
     try:
         # This line reads the file using the system's default encoding
-        with open(args.quantity_data, 'r') as f:
+        with open(args.quantity_data, 'r', encoding='utf-8') as f:
             quantity_data = json.load(f)
         
         # Basic validation of quantity data structure
@@ -165,7 +165,7 @@ def validate_input_files(args):
     
     try:
         # This line also reads the file using the system's default encoding
-        with open(args.template, 'r') as f:
+        with open(args.template, 'r', encoding='utf-8') as f:
             template_data = json.load(f)
         
         # Basic validation of template structure
@@ -247,7 +247,7 @@ def generate_configuration(args):
 def show_quantity_data_info(quantity_path):
     """Show information about the quantity data file."""
     try:
-        with open(quantity_path, 'r') as f:
+        with open(quantity_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         print(f"\n[INFO] Quantity Data Information:")
@@ -282,11 +282,11 @@ def show_generation_summary(output_path, quantity_path):
     """Show summary of what was generated."""
     try:
         # Load generated config
-        with open(output_path, 'r') as f:
+        with open(output_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
         # Load quantity data for comparison
-        with open(quantity_path, 'r') as f:
+        with open(quantity_path, 'r', encoding='utf-8') as f:
             quantity_data = json.load(f)
         
         print(f"\n[SUMMARY] Generation Summary:")
