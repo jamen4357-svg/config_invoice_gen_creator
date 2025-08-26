@@ -62,7 +62,7 @@ class ConfigGenerator:
         
         self.logger.info("ConfigGenerator initialized with all components")
     
-    def generate_config(self, template_path: str, quantity_data_path: str, output_path: str) -> None:
+    def generate_config(self, template_path: str, quantity_data_path: str, output_path: str, interactive_mode: bool = False) -> None:
         """
         Generate configuration by implementing the complete template-based update workflow.
         
@@ -76,6 +76,7 @@ class ConfigGenerator:
             template_path: Path to the template configuration file (sample_config.json)
             quantity_data_path: Path to the quantity analysis JSON file
             output_path: Path where the generated configuration should be written
+            interactive_mode: If True, enable interactive fallbacks for header mapping with user validation
             
         Raises:
             ConfigGeneratorError: If any step in the workflow fails
@@ -96,7 +97,7 @@ class ConfigGenerator:
             
             # Step 3: Update specific fields while preserving template structure
             self.logger.info("Step 3: Updating configuration fields")
-            updated_config = self._update_configuration(template_config, quantity_data)
+            updated_config = self._update_configuration(template_config, quantity_data, interactive_mode)
             
             # Step 4: Write the updated configuration
             self.logger.info("Step 4: Writing updated configuration")
@@ -162,7 +163,7 @@ class ConfigGenerator:
             self.logger.error(error_msg)
             raise ConfigGeneratorError(error_msg) from e
     
-    def _update_configuration(self, template_config: Dict[str, Any], quantity_data: QuantityAnalysisData) -> Dict[str, Any]:
+    def _update_configuration(self, template_config: Dict[str, Any], quantity_data: QuantityAnalysisData, interactive_mode: bool = False) -> Dict[str, Any]:
         """
         Update configuration by applying all field updates while preserving template structure.
         
@@ -176,6 +177,7 @@ class ConfigGenerator:
         Args:
             template_config: Base template configuration
             quantity_data: Quantity analysis data for updates
+            interactive_mode: If True, enable interactive fallbacks for header mapping
             
         Returns:
             Updated configuration with selective field replacements
@@ -191,7 +193,7 @@ class ConfigGenerator:
             
             # Step 3a: Update header texts
             self.logger.debug("Updating header texts")
-            updated_config = self.header_text_updater.update_header_texts(updated_config, quantity_data)
+            updated_config = self.header_text_updater.update_header_texts(updated_config, quantity_data, interactive_mode)
             
             # Step 3b: Update font information
             self.logger.debug("Updating font information")

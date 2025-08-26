@@ -497,6 +497,9 @@ This tool streamlines the process of creating an invoice configuration by:
 
     if args.verbose:
         generate_command.append('-v')
+        
+    if args.interactive:
+        generate_command.append('--interactive')
 
     if not run_command(generate_command, args.verbose):
         print("\n[ORCHESTRATOR] Failed during the configuration generation step. Aborting.", file=sys.stderr)

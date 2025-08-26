@@ -82,7 +82,8 @@
       "Unit Price  (USD)": "col_unit_price",
       "Quantity               (SF)": "col_qty_sf",
       "Unite price   (USD)": "col_unit_price",
-      "G.W(kgs)": "col_gross"
+      "G.W(kgs)": "col_gross",
+      "Quantity(SF)": "col_qty_sf"
     }
   },
   "fallback_strategies": {

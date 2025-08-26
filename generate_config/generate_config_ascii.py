@@ -122,6 +122,12 @@ The tool will:
         help='Show information about the quantity data and exit'
     )
     
+    parser.add_argument(
+        '--interactive',
+        action='store_true',
+        help='Enable interactive mode for header mapping with user validation'
+    )
+    
     return parser
 
 
@@ -224,8 +230,8 @@ def generate_configuration(args):
         
         # Generate configuration by calling the external class
         generator = ConfigGenerator()
-        # The error happens inside this method call, where the output file is written
-        generator.generate_config(args.template, args.quantity_data, output_path)
+        # Pass interactive mode to the generator
+        generator.generate_config(args.template, args.quantity_data, output_path, interactive_mode=args.interactive)
         
         if not args.quiet:
             print(f"\n[SUCCESS] Configuration generated successfully!")

@@ -89,13 +89,17 @@ class HeaderTextUpdater:
             'REMARKS': 'col_remarks'
         }
     
-    def update_header_texts(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData) -> Dict[str, Any]:
+    def update_header_texts(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData, interactive_mode: bool = False) -> Dict[str, Any]:
         """
         Update header text values in header_to_write sections using quantity analysis data.
+        
+        This method now generates header structures dynamically based on actual Excel data
+        rather than trying to fit Excel data into predefined template structures.
         
         Args:
             template: Configuration template dictionary
             quantity_data: Quantity analysis data containing header positions
+            interactive_mode: If True, enable interactive fallbacks for header mapping with user validation
             
         Returns:
             Updated template with header texts replaced
@@ -106,49 +110,94 @@ class HeaderTextUpdater:
         try:
             if not isinstance(template, dict):
                 raise HeaderTextUpdaterError("Template must be a dictionary")
-            
+
             if not isinstance(quantity_data, QuantityAnalysisData):
                 raise HeaderTextUpdaterError("Quantity data must be QuantityAnalysisData instance")
-            
+
             # Validate template structure
             self._validate_template_structure(template)
-            
+
             # Create deep copy to avoid modifying original template
             updated_template = copy.deepcopy(template)
-            
+
             # Process each sheet in the template
             data_mapping = updated_template.get('data_mapping', {})
-            
+
             # Track unrecognized headers for fallback strategies
             unrecognized_headers = []
-            
+
             for sheet_data in quantity_data.sheets:
                 quantity_sheet_name = sheet_data.sheet_name
                 mapped_sheet_name = self._map_sheet_name(quantity_sheet_name)
-                
+
                 if mapped_sheet_name not in data_mapping:
                     # Log missing sheet but continue processing
                     continue
                     
                 sheet_config = data_mapping[mapped_sheet_name]
-                header_to_write = sheet_config.get('header_to_write', [])
                 
-                # Update header texts for this sheet with fallback handling
-                sheet_unrecognized = self._update_sheet_headers_with_fallback(
-                    header_to_write, sheet_data.header_positions, mapped_sheet_name
+                # CRITICAL CHANGE: Generate headers dynamically instead of updating template
+                generated_headers = self._generate_headers_from_excel_data(
+                    sheet_data.header_positions, mapped_sheet_name, interactive_mode
                 )
-                unrecognized_headers.extend(sheet_unrecognized)
-            
-            # Apply fallback strategies for unrecognized headers
-            if unrecognized_headers:
-                self._apply_fallback_strategies(updated_template, unrecognized_headers)
-            
+                
+                # Replace template headers with dynamically generated ones
+                sheet_config['header_to_write'] = generated_headers
+
             return updated_template
             
         except Exception as e:
             if isinstance(e, HeaderTextUpdaterError):
                 raise
             raise HeaderTextUpdaterError(f"Header text update failed: {str(e)}") from e
+
+    def _generate_headers_from_excel_data(self, header_positions: List[HeaderPosition], sheet_name: str, interactive_mode: bool = False) -> List[Dict[str, Any]]:
+        """
+        Generate header_to_write structure dynamically from actual Excel header data.
+        
+        This replaces the template-based approach with a data-driven approach.
+        
+        Args:
+            header_positions: Header positions from quantity analysis
+            sheet_name: Name of the sheet being processed
+            interactive_mode: If True, enable interactive fallbacks for header mapping with user validation
+            
+        Returns:
+            List of header entries generated from actual Excel data
+        """
+        generated_headers = []
+        unrecognized_headers = []
+        
+        for i, header_pos in enumerate(header_positions):
+            if not isinstance(header_pos, HeaderPosition):
+                continue
+                
+            keyword = header_pos.keyword
+            if not keyword or not isinstance(keyword, str):
+                continue
+                
+            # Map the header text to column ID (use strict mode unless interactive)
+            column_id = self.map_header_to_column_id(keyword, strict_mode=not interactive_mode)
+            
+            if column_id:
+                # Create header entry with actual Excel position
+                header_entry = {
+                    "row": 0,  # For single-row headers
+                    "col": i,  # Use actual Excel column index
+                    "text": keyword,  # Use actual Excel header text
+                    "id": column_id,
+                    "rowspan": 1
+                }
+                generated_headers.append(header_entry)
+                print(f"[INFO] Generated header for '{keyword}' → {column_id} at position {i}")
+            else:
+                unrecognized_headers.append(f"{sheet_name}:{keyword}")
+                print(f"[WARNING] Unrecognized header '{keyword}' in sheet '{sheet_name}' - skipping")
+        
+        if unrecognized_headers:
+            print(f"[WARNING] Unrecognized headers: {unrecognized_headers}")
+            
+        return generated_headers
     
     def _map_sheet_name(self, quantity_sheet_name: str) -> str:
         """
@@ -209,7 +258,7 @@ class HeaderTextUpdater:
                 if not keyword or not isinstance(keyword, str):
                     continue  # Skip invalid keywords
                 
-                column_id = self.map_header_to_column_id(keyword)
+                column_id = self.map_header_to_column_id(keyword, strict_mode=True)
                 
                 if column_id:
                     column_id_to_text[column_id] = keyword
@@ -267,12 +316,13 @@ class HeaderTextUpdater:
         """
         self._update_sheet_headers_with_fallback(header_to_write, header_positions, "unknown")
     
-    def map_header_to_column_id(self, header_text: str) -> Optional[str]:
+    def map_header_to_column_id(self, header_text: str, strict_mode: bool = True) -> Optional[str]:
         """
-        Map header text to column ID using intelligent fuzzy matching and user configurations.
+        Map header text to column ID using exact mappings only (strict mode) or with fallbacks (interactive mode).
         
         Args:
             header_text: Header text from quantity analysis
+            strict_mode: If True, only use exact mappings. If False, use fuzzy matching and patterns.
             
         Returns:
             Column ID string or None if no mapping found
@@ -280,15 +330,24 @@ class HeaderTextUpdater:
         if not isinstance(header_text, str):
             return None
         
-        # Use mapping manager if available
+        # Use mapping manager if available - always try exact match first
         if self.mapping_manager:
             mapped_id = self.mapping_manager.map_header_to_column_id(header_text)
             if mapped_id:
                 return mapped_id
         
-        # Try exact match first
+        # Try exact match from fallback mappings
         if header_text in self.fallback_header_mappings:
             return self.fallback_header_mappings[header_text]
+        
+        # STRICT MODE: Only use exact mappings (for production config generation)
+        if strict_mode:
+            print(f"[STRICT] No exact mapping found for header '{header_text}' - skipping")
+            print(f"[HINT] Add mapping with: python generate_config/add_mapping.py --add-header \"{header_text}:col_id\"")
+            return None
+        
+        # INTERACTIVE MODE: Use fuzzy matching and patterns (requires user validation)
+        print(f"[INTERACTIVE] Trying fallback matching for header '{header_text}'...")
         
         # Normalize header text for fuzzy matching
         normalized_header = self._normalize_header_text(header_text)
@@ -296,10 +355,19 @@ class HeaderTextUpdater:
         # Try fuzzy matching with normalized text
         best_match = self._find_best_fuzzy_match(normalized_header)
         if best_match:
-            return best_match
+            print(f"[FUZZY] Found potential match: '{header_text}' → {best_match}")
+            if self._confirm_mapping_with_user(header_text, best_match, "fuzzy matching"):
+                return best_match
         
         # Smart pattern matching with flexible rules
-        return self._smart_pattern_matching(normalized_header, header_text)
+        pattern_match = self._smart_pattern_matching(normalized_header, header_text)
+        if pattern_match:
+            print(f"[PATTERN] Found potential match: '{header_text}' → {pattern_match}")
+            if self._confirm_mapping_with_user(header_text, pattern_match, "pattern matching"):
+                return pattern_match
+        
+        # No automatic suggestions - ask user for manual mapping
+        return self._ask_user_for_mapping(header_text)
     
     def _normalize_header_text(self, header_text: str) -> str:
         """
@@ -630,3 +698,112 @@ class HeaderTextUpdater:
             return similarity >= 0.7
         
         return False
+    
+    def _confirm_mapping_with_user(self, header_text: str, suggested_column_id: str, match_type: str) -> bool:
+        """
+        Ask user to confirm a suggested mapping in interactive mode.
+        
+        Args:
+            header_text: Original header text from Excel
+            suggested_column_id: Suggested column ID to map to
+            match_type: Type of matching used (e.g., "fuzzy matching", "pattern matching")
+            
+        Returns:
+            True if user confirms the mapping, False otherwise
+        """
+        print(f"\n[INTERACTIVE] Found potential mapping via {match_type}:")
+        print(f"  Excel Header: '{header_text}'")
+        print(f"  Suggested Column ID: '{suggested_column_id}'")
+        
+        while True:
+            response = input("Accept this mapping? (y/n/s to save permanently): ").lower().strip()
+            if response in ['y', 'yes']:
+                return True
+            elif response in ['n', 'no']:
+                return False
+            elif response in ['s', 'save']:
+                # Save the mapping permanently to mapping_config.json
+                if self._save_mapping_to_config(header_text, suggested_column_id):
+                    print(f"[SAVED] Mapping saved permanently: '{header_text}' → '{suggested_column_id}'")
+                    return True
+                else:
+                    print("[ERROR] Failed to save mapping to config file")
+                    return False
+            else:
+                print("Please enter 'y' for yes, 'n' for no, or 's' to save permanently")
+    
+    def _ask_user_for_mapping(self, header_text: str) -> Optional[str]:
+        """
+        Ask user to manually specify a column ID for an unknown header.
+        
+        Args:
+            header_text: Header text that couldn't be automatically mapped
+            
+        Returns:
+            Column ID specified by user, or None if user chooses to skip
+        """
+        print(f"\n[INTERACTIVE] No automatic mapping found for header: '{header_text}'")
+        print("Available column IDs: col_po, col_item, col_desc, col_quantity, col_unit_price, col_total_price, col_net_weight, col_gross_weight")
+        print("Or enter 'skip' to ignore this header")
+        
+        while True:
+            response = input("Enter column ID for this header (or 'skip'): ").lower().strip()
+            if response == 'skip':
+                return None
+            elif response.startswith('col_'):
+                # Validate that it's a known column ID
+                valid_columns = ['col_po', 'col_item', 'col_desc', 'col_quantity', 'col_unit_price', 
+                               'col_total_price', 'col_net_weight', 'col_gross_weight']
+                if response in valid_columns:
+                    # Ask if user wants to save this mapping permanently
+                    save_response = input(f"Save this mapping permanently? (y/n): ").lower().strip()
+                    if save_response in ['y', 'yes']:
+                        if self._save_mapping_to_config(header_text, response):
+                            print(f"[SAVED] Mapping saved permanently: '{header_text}' → '{response}'")
+                    return response
+                else:
+                    print(f"Invalid column ID. Must be one of: {', '.join(valid_columns)}")
+            else:
+                print("Please enter a valid column ID (starting with 'col_') or 'skip'")
+    
+    def _save_mapping_to_config(self, header_text: str, column_id: str) -> bool:
+        """
+        Save a new header mapping to the mapping_config.json file.
+        
+        Args:
+            header_text: Header text to add to mapping
+            column_id: Column ID to map to
+            
+        Returns:
+            True if successfully saved, False otherwise
+        """
+        try:
+            import json
+            import os
+            
+            # Path to mapping config file
+            config_path = os.path.join(os.path.dirname(__file__), "..", "mapping_config.json")
+            
+            # Load existing config
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {"header_mappings": {}}
+            
+            # Ensure header_mappings section exists
+            if "header_mappings" not in config:
+                config["header_mappings"] = {}
+            
+            # Add the new mapping
+            config["header_mappings"][header_text] = column_id
+            
+            # Save back to file
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to save mapping to config: {e}")
+            return False
