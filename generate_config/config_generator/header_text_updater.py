@@ -156,6 +156,7 @@ class HeaderTextUpdater:
         Generate header_to_write structure dynamically from actual Excel header data.
         
         This replaces the template-based approach with a data-driven approach.
+        Properly handles multi-row headers by detecting row patterns and creating appropriate structure.
         
         Args:
             header_positions: Header positions from quantity analysis
@@ -168,6 +169,11 @@ class HeaderTextUpdater:
         generated_headers = []
         unrecognized_headers = []
         
+        if not header_positions:
+            return generated_headers
+        
+        # Group headers by their actual row numbers
+        headers_by_row = {}
         for i, header_pos in enumerate(header_positions):
             if not isinstance(header_pos, HeaderPosition):
                 continue
@@ -175,24 +181,148 @@ class HeaderTextUpdater:
             keyword = header_pos.keyword
             if not keyword or not isinstance(keyword, str):
                 continue
-                
-            # Map the header text to column ID (use strict mode unless interactive)
-            column_id = self.map_header_to_column_id(keyword, strict_mode=not interactive_mode)
             
-            if column_id:
-                # Create header entry with actual Excel position
-                header_entry = {
-                    "row": 0,  # For single-row headers
-                    "col": i,  # Use actual Excel column index
-                    "text": keyword,  # Use actual Excel header text
-                    "id": column_id,
-                    "rowspan": 1
-                }
-                generated_headers.append(header_entry)
-                print(f"[INFO] Generated header for '{keyword}' → {column_id} at position {i}")
-            else:
-                unrecognized_headers.append(f"{sheet_name}:{keyword}")
-                print(f"[WARNING] Unrecognized header '{keyword}' in sheet '{sheet_name}' - skipping")
+            actual_row = header_pos.row
+            actual_col = header_pos.column
+            
+            if actual_row not in headers_by_row:
+                headers_by_row[actual_row] = []
+            
+            headers_by_row[actual_row].append({
+                'keyword': keyword,
+                'excel_row': actual_row,
+                'excel_col': actual_col,
+                'index': i
+            })
+        
+        # Sort rows to process in order
+        sorted_rows = sorted(headers_by_row.keys())
+        
+        # Check if we have multi-row headers
+        has_multi_row = len(sorted_rows) > 1
+        
+        if has_multi_row:
+            print(f"[INFO] Detected multi-row headers in {sheet_name}: rows {sorted_rows}")
+            
+            # Process first row headers
+            first_row_headers = headers_by_row[sorted_rows[0]]
+            second_row_headers = headers_by_row.get(sorted_rows[1], []) if len(sorted_rows) > 1 else []
+            
+            # Create a map of second row column positions to find parent headers
+            second_row_cols = {h['excel_col'] for h in second_row_headers}
+            
+            # Remove duplicates from second row (same column, same keyword)
+            unique_second_row = {}
+            for h in second_row_headers:
+                key = (h['excel_col'], h['keyword'])
+                if key not in unique_second_row:
+                    unique_second_row[key] = h
+            second_row_headers = list(unique_second_row.values())
+            
+            # Identify which first-row headers should become parent headers with colspan
+            first_row_cols = {h['excel_col'] for h in first_row_headers}
+            
+            # Process first row headers
+            for header_info in first_row_headers:
+                keyword = header_info['keyword']
+                excel_col = header_info['excel_col']
+                
+                column_id = self.map_header_to_column_id(keyword, strict_mode=not interactive_mode)
+                
+                if column_id:
+                    # Check if there are second-row headers that should be under this one
+                    # Look for headers in columns directly under this column
+                    child_headers = [h for h in second_row_headers if h['excel_col'] == excel_col]
+                    
+                    if child_headers:
+                        # This should be a parent header with colspan
+                        # Count consecutive child columns starting from this position
+                        consecutive_children = []
+                        for col_offset in range(2):  # Check this column and next
+                            child = next((h for h in second_row_headers if h['excel_col'] == excel_col + col_offset), None)
+                            if child:
+                                consecutive_children.append(child)
+                            else:
+                                break
+                        
+                        if len(consecutive_children) > 1:
+                            header_entry = {
+                                "row": 0,
+                                "col": excel_col - 1,  # Convert to 0-based indexing
+                                "text": keyword,
+                                "colspan": len(consecutive_children)
+                            }
+                            print(f"[INFO] Generated parent header for '{keyword}' at col {excel_col - 1} with colspan={len(consecutive_children)}")
+                        else:
+                            # Regular header with rowspan=2 to span both rows
+                            header_entry = {
+                                "row": 0,
+                                "col": excel_col - 1,  # Convert to 0-based indexing
+                                "text": keyword,
+                                "id": column_id,
+                                "rowspan": 2
+                            }
+                            print(f"[INFO] Generated spanning header for '{keyword}' → {column_id} at col {excel_col - 1}")
+                    else:
+                        # Regular header with rowspan=2 to span both rows
+                        header_entry = {
+                            "row": 0,
+                            "col": excel_col - 1,  # Convert to 0-based indexing
+                            "text": keyword,
+                            "id": column_id,
+                            "rowspan": 2
+                        }
+                        print(f"[INFO] Generated spanning header for '{keyword}' → {column_id} at col {excel_col - 1}")
+                    
+                    generated_headers.append(header_entry)
+                else:
+                    unrecognized_headers.append(f"{sheet_name}:{keyword}")
+                    print(f"[WARNING] Unrecognized header '{keyword}' in sheet '{sheet_name}' - skipping")
+            
+            # Process second row headers (unique only)
+            for header_info in second_row_headers:
+                keyword = header_info['keyword']
+                excel_col = header_info['excel_col']
+                
+                column_id = self.map_header_to_column_id(keyword, strict_mode=not interactive_mode)
+                
+                if column_id:
+                    header_entry = {
+                        "row": 1,  # Second row
+                        "col": excel_col - 1,  # Convert to 0-based indexing
+                        "text": keyword,
+                        "id": column_id
+                    }
+                    generated_headers.append(header_entry)
+                    print(f"[INFO] Generated second-row header for '{keyword}' → {column_id} at row 1, col {excel_col - 1}")
+                else:
+                    unrecognized_headers.append(f"{sheet_name}:{keyword}")
+                    print(f"[WARNING] Unrecognized second-row header '{keyword}' in sheet '{sheet_name}' - skipping")
+        else:
+            # Single row headers - use the original logic
+            for i, header_pos in enumerate(header_positions):
+                if not isinstance(header_pos, HeaderPosition):
+                    continue
+                    
+                keyword = header_pos.keyword
+                if not keyword or not isinstance(keyword, str):
+                    continue
+                    
+                column_id = self.map_header_to_column_id(keyword, strict_mode=not interactive_mode)
+                
+                if column_id:
+                    header_entry = {
+                        "row": 0,
+                        "col": i,
+                        "text": keyword,
+                        "id": column_id,
+                        "rowspan": 1
+                    }
+                    generated_headers.append(header_entry)
+                    print(f"[INFO] Generated header for '{keyword}' → {column_id} at position {i}")
+                else:
+                    unrecognized_headers.append(f"{sheet_name}:{keyword}")
+                    print(f"[WARNING] Unrecognized header '{keyword}' in sheet '{sheet_name}' - skipping")
         
         if unrecognized_headers:
             print(f"[WARNING] Unrecognized headers: {unrecognized_headers}")
@@ -743,7 +873,7 @@ class HeaderTextUpdater:
             Column ID specified by user, or None if user chooses to skip
         """
         print(f"\n[INTERACTIVE] No automatic mapping found for header: '{header_text}'")
-        print("Available column IDs: col_po, col_item, col_desc, col_quantity, col_unit_price, col_total_price, col_net_weight, col_gross_weight")
+        print("Available column IDs: col_po, col_item, col_dc, col_desc, col_quantity, col_unit_price, col_total_price, col_net_weight, col_gross_weight")
         print("Or enter 'skip' to ignore this header")
         
         while True:

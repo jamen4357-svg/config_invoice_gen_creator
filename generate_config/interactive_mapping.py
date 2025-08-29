@@ -136,6 +136,7 @@ class InteractiveMappingTool:
             ("col_static", "Mark & note columns"),
             ("col_po", "Purchase order columns"),
             ("col_item", "Item number columns"),
+            ("col_dc", "Document/Delivery code columns"),
             ("col_desc", "Description columns"),
             ("col_qty_sf", "Quantity/square feet columns"),
             ("col_qty_pcs", "Quantity/pieces columns"),

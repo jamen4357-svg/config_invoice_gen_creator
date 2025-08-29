@@ -59,6 +59,7 @@ Here are the standard column IDs used in the template:
 | `col_static` | Mark & Number column |
 | `col_po` | Purchase Order number |
 | `col_item` | Item number |
+| `col_dc` | Document/Delivery code |
 | `col_desc` | Description |
 | `col_qty_sf` | Quantity in square feet |
 | `col_qty_pcs` | Quantity in pieces |

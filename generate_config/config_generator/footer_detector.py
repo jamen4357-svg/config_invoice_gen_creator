@@ -90,19 +90,69 @@ class FooterDetector:
             print(f"[FOOTER_DETECTOR] No formula row found after header row {header_row}")
             return None
         
-        # Step 3: Extract font information from the formula row
+        # Step 3: Find total text column
+        total_text_column, total_text_value = self._find_total_text_column(worksheet, formula_row)
+        
+        # Step 4: Extract font information from the formula row
         footer_font = self._extract_footer_font(worksheet, formula_row, formula_columns)
         
-        # Step 4: Create FooterInfo object
+        # Step 5: Create FooterInfo object
         footer_info = FooterInfo(
             row=formula_row,
             font=footer_font,
             has_formulas=True,
-            formula_columns=formula_columns
+            formula_columns=formula_columns,
+            total_text_column=total_text_column,
+            total_text_value=total_text_value
         )
         
         print(f"[FOOTER_DETECTOR] Footer detected at row {formula_row} with {len(formula_columns)} formula columns")
+        if total_text_column:
+            print(f"[FOOTER_DETECTOR] Total text '{total_text_value}' found in column {total_text_column}")
+        
         return footer_info
+    
+    def _find_total_text_column(self, worksheet: Worksheet, formula_row: int) -> tuple[Optional[int], Optional[str]]:
+        """
+        Find the column containing total text (TOTAL: or TOTAL OF:) in the footer row.
+        
+        Args:
+            worksheet: The worksheet to search
+            formula_row: The row containing the footer
+            
+        Returns:
+            Tuple of (column_number, total_text) or (None, None) if not found
+        """
+        total_text_patterns = [
+            "TOTAL:",
+            "TOTAL OF:",
+            "TOTAL",
+            "Total:",
+            "Total of:",
+            "Total"
+        ]
+        
+        # Search in the formula row and a few rows before/after for total text
+        search_rows = [formula_row - 1, formula_row, formula_row + 1]
+        
+        for row in search_rows:
+            if row < 1:
+                continue
+                
+            for col in range(1, min(worksheet.max_column + 1, 15)):  # Check first 15 columns
+                cell = worksheet.cell(row=row, column=col)
+                
+                if cell.value is not None:
+                    cell_text = str(cell.value).strip()
+                    
+                    # Check if cell contains total text
+                    for pattern in total_text_patterns:
+                        if pattern.lower() in cell_text.lower():
+                            print(f"[FOOTER_DETECTOR] Found total text '{cell_text}' at row {row}, column {col}")
+                            return col, cell_text
+        
+        print(f"[FOOTER_DETECTOR] No total text found in footer area around row {formula_row}")
+        return None, None
     
     def _find_formula_columns(self, worksheet: Worksheet, header_row: int) -> List[int]:
         """

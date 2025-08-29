@@ -47,6 +47,8 @@ class FooterInfo:
     font: FontInfo
     has_formulas: bool = False
     formula_columns: List[int] = None
+    total_text_column: Optional[int] = None  # Column where "TOTAL:" text is found
+    total_text_value: Optional[str] = None   # Actual text found ("TOTAL:" or "TOTAL OF:")
     
     def __post_init__(self):
         """Validate footer data after initialization."""

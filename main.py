@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Main orchestrator for the Automated Invoice Config Generator.
 
@@ -162,6 +163,7 @@ def extract_and_log_headers(analysis_file_path: str, output_base_name: str, inte
             f.write("- col_static: For mark/note columns\n")
             f.write("- col_po: For purchase order columns\n")
             f.write("- col_item: For item number columns\n")
+            f.write("- col_dc: For document/delivery code columns\n")
             f.write("- col_desc: For description columns\n")
             f.write("- col_qty_sf: For quantity/square feet columns\n")
             f.write("- col_unit_price: For unit price columns\n")

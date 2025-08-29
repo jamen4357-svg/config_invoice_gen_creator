@@ -32,6 +32,7 @@ python add_mapping.py --add-header "ACTUAL_HEADER:col_id"
 |-----------|---------|
 | `col_po` | Purchase Order |
 | `col_item` | Item Number |
+| `col_dc` | Document/Delivery Code |
 | `col_desc` | Description |
 | `col_qty_sf` | Quantity (SF) |
 | `col_unit_price` | Unit Price |

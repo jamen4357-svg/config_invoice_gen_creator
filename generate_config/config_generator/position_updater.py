@@ -439,8 +439,15 @@ class PositionUpdater:
             
             print(f"🔍 [DEBUG] Processing {len(quantity_data.sheets)} sheets for row heights")
             
+            # Store Excel file path for height extraction
+            self._excel_file_path = quantity_data.file_path
+            print(f"📏 [HEIGHT_SETUP] Excel file path: {self._excel_file_path}")
+            
             # Create deep copy to avoid modifying original template
             updated_template = copy.deepcopy(template)
+            
+            # Update footer configurations with correct total text column IDs
+            self.update_footer_configurations(updated_template, quantity_data)
             
             # Process each sheet in the template
             data_mapping = updated_template.get('data_mapping', {})
@@ -480,7 +487,7 @@ class PositionUpdater:
     
     def _extract_row_heights_from_sheet(self, sheet_data: SheetData, sheet_name: str) -> Dict[str, float]:
         """
-        Extract row heights from sheet data, including proper footer detection.
+        Extract row heights from sheet data using actual Excel row heights when possible.
         
         Args:
             sheet_data: Sheet data containing row height information
@@ -488,6 +495,116 @@ class PositionUpdater:
             
         Returns:
             Dictionary with row height information
+        """
+        row_heights = {}
+        
+        # Try to use actual Excel heights first
+        excel_heights = self._get_actual_excel_heights(sheet_data, sheet_name)
+        if excel_heights:
+            row_heights.update(excel_heights)
+            print(f"📏 [HEIGHT_EXCEL] Using actual Excel heights for {sheet_name}: {excel_heights}")
+        else:
+            # Fallback to font-based estimation
+            print(f"📏 [HEIGHT_FALLBACK] Using font-based estimation for {sheet_name}")
+            row_heights = self._get_font_based_heights(sheet_data, sheet_name)
+        
+        # Special case for Packing list - add before_footer height
+        if sheet_name == 'Packing list':
+            row_heights['before_footer'] = row_heights['data_default']
+        
+        print(f"[ROW_HEIGHTS] Extracted for {sheet_name}: header={row_heights['header']}, data={row_heights['data_default']}, footer={row_heights['footer']}")
+        
+        return row_heights
+    
+    def _get_actual_excel_heights(self, sheet_data: SheetData, sheet_name: str) -> Optional[Dict[str, float]]:
+        """
+        Get actual Excel row heights using ExcelHeightAnalyzer.
+        
+        Args:
+            sheet_data: Sheet data containing row information
+            sheet_name: Name of the sheet
+            
+        Returns:
+            Dictionary with actual heights or None if Excel access fails
+        """
+        try:
+            # Import here to avoid circular imports
+            from .excel_height_analyzer import ExcelHeightAnalyzer
+            
+            # Get the Excel file path from quantity_data if available
+            excel_file_path = getattr(sheet_data, 'excel_file_path', None)
+            if not excel_file_path and hasattr(self, '_excel_file_path'):
+                excel_file_path = self._excel_file_path
+            
+            if not excel_file_path:
+                print(f"📏 [HEIGHT_EXCEL] No Excel file path available for {sheet_name}")
+                return None
+            
+            analyzer = ExcelHeightAnalyzer(excel_file_path)
+            
+            # Get sheet structure
+            structure = analyzer.analyze_sheet_structure(sheet_name)
+            
+            if structure['heights']:
+                actual_heights = structure['heights']
+                
+                # Validate heights are within reasonable ranges
+                validated_heights = self._validate_height_ranges(actual_heights, sheet_name)
+                return validated_heights
+            else:
+                print(f"📏 [HEIGHT_EXCEL] Could not extract structure for {sheet_name}")
+                return None
+                
+        except Exception as e:
+            print(f"📏 [HEIGHT_EXCEL] Error accessing Excel heights for {sheet_name}: {e}")
+            return None
+    
+    def _validate_height_ranges(self, heights: Dict[str, float], sheet_name: str) -> Dict[str, float]:
+        """
+        Validate and adjust height values to be within reasonable ranges.
+        
+        Args:
+            heights: Dictionary of height values
+            sheet_name: Name of the sheet for logging
+            
+        Returns:
+            Dictionary with validated height values
+        """
+        validated = {}
+        
+        # Height validation ranges (expanded to accommodate real Excel files)
+        ranges = {
+            'header': (10, 80),      # Headers can be quite tall
+            'data_default': (10, 60), # Data rows typically smaller
+            'footer': (10, 70),      # Footers can be medium height
+            'before_footer': (10, 60)
+        }
+        
+        for key, value in heights.items():
+            if key in ranges:
+                min_val, max_val = ranges[key]
+                if min_val <= value <= max_val:
+                    validated[key] = value
+                    print(f"📏 [HEIGHT_VALIDATION] {sheet_name} {key}: {value}pt ✅ VALID")
+                else:
+                    # Use the closest valid value
+                    validated[key] = max(min_val, min(value, max_val))
+                    print(f"📏 [HEIGHT_VALIDATION] {sheet_name} {key}: {value}pt -> {validated[key]}pt (clamped to range {min_val}-{max_val})")
+            else:
+                validated[key] = value
+        
+        return validated
+    
+    def _get_font_based_heights(self, sheet_data: SheetData, sheet_name: str) -> Dict[str, float]:
+        """
+        Get row heights based on font sizes (fallback method).
+        
+        Args:
+            sheet_data: Sheet data containing font information
+            sheet_name: Name of the sheet for logging
+            
+        Returns:
+            Dictionary with font-based height estimates
         """
         row_heights = {}
         
@@ -528,10 +645,96 @@ class PositionUpdater:
             row_heights['footer'] = row_heights['header']
             print(f"[FOOTER_DETECTION] {sheet_name}: No footer info found, using header height {row_heights['footer']}")
         
-        # Special case for Packing list - add before_footer height
-        if sheet_name == 'Packing list':
-            row_heights['before_footer'] = row_heights['data_default']
-        
-        print(f"[ROW_HEIGHTS] Extracted for {sheet_name}: header={row_heights['header']}, data={row_heights['data_default']}, footer={row_heights['footer']}")
-        
         return row_heights
+    
+    def update_footer_configurations(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData) -> None:
+        """
+        Update footer configurations with correct total_text_column_id based on actual Excel footer analysis.
+        
+        Args:
+            template: Template dictionary to update
+            quantity_data: Processed quantity analysis data containing footer information
+        """
+        print("🔍 [FOOTER_CONFIG] Starting footer configuration updates...")
+        
+        data_mapping = template.get('data_mapping', {})
+        
+        for sheet_name, sheet_config in data_mapping.items():
+            print(f"🔍 [FOOTER_CONFIG] Processing sheet: {sheet_name}")
+            
+            # Find corresponding sheet data
+            sheet_data = None
+            for data_sheet in quantity_data.sheets:
+                if data_sheet.sheet_name == sheet_name:
+                    sheet_data = data_sheet
+                    break
+            
+            if not sheet_data:
+                print(f"🔍 [FOOTER_CONFIG] Sheet '{sheet_name}' not found in quantity data, skipping")
+                continue
+            
+            # Check if sheet has footer info with total text column
+            if hasattr(sheet_data, 'footer_info') and sheet_data.footer_info and sheet_data.footer_info.total_text_column:
+                total_text_column = sheet_data.footer_info.total_text_column
+                total_text_value = sheet_data.footer_info.total_text_value
+                
+                print(f"📊 [FOOTER_CONFIG] Found total text '{total_text_value}' in column {total_text_column} for {sheet_name}")
+                
+                # Map Excel column to column ID
+                correct_column_id = self._map_excel_column_to_column_id(sheet_config, total_text_column, sheet_name)
+                
+                if correct_column_id:
+                    # Update footer configuration
+                    footer_config = sheet_config.get('footer_configurations', {})
+                    old_column_id = footer_config.get('total_text_column_id', 'none')
+                    
+                    footer_config['total_text_column_id'] = correct_column_id
+                    footer_config['total_text'] = total_text_value  # Use actual text from Excel
+                    
+                    print(f"✅ [FOOTER_CONFIG] Updated {sheet_name}: total_text_column_id: '{old_column_id}' → '{correct_column_id}'")
+                    print(f"✅ [FOOTER_CONFIG] Updated {sheet_name}: total_text: '{total_text_value}'")
+                else:
+                    print(f"❌ [FOOTER_CONFIG] Could not map column {total_text_column} to column ID for {sheet_name}")
+            else:
+                print(f"📊 [FOOTER_CONFIG] No total text column found for {sheet_name}, skipping")
+    
+    def _map_excel_column_to_column_id(self, sheet_config: Dict[str, Any], excel_column: int, sheet_name: str) -> Optional[str]:
+        """
+        Map Excel column number to corresponding column ID based on header_to_write configuration.
+        
+        Args:
+            sheet_config: Sheet configuration containing header_to_write
+            excel_column: Excel column number (1-based)
+            sheet_name: Sheet name for logging
+            
+        Returns:
+            Column ID string or None if mapping not found
+        """
+        header_to_write = sheet_config.get('header_to_write', [])
+        
+        # Convert Excel column (1-based) to config column (0-based)
+        config_column = excel_column - 1
+        
+        print(f"🔍 [COLUMN_MAPPING] Looking for column {config_column} (Excel col {excel_column}) in {sheet_name} headers")
+        
+        # Search through header_to_write entries
+        for header_entry in header_to_write:
+            if isinstance(header_entry, dict) and 'col' in header_entry and 'id' in header_entry:
+                if header_entry['col'] == config_column:
+                    column_id = header_entry['id']
+                    print(f"✅ [COLUMN_MAPPING] Found mapping: Excel col {excel_column} → {column_id}")
+                    return column_id
+        
+        # If exact match not found, try to find closest match or fallback
+        print(f"⚠️ [COLUMN_MAPPING] No exact match for column {config_column}, trying fallbacks...")
+        
+        # Common fallbacks based on column position
+        if config_column == 0:  # First column often col_static
+            return 'col_static'
+        elif config_column == 1:  # Second column often col_po
+            return 'col_po'
+        elif config_column == 2:  # Third column often col_item
+            return 'col_item'
+        
+        print(f"❌ [COLUMN_MAPPING] No mapping found for Excel column {excel_column} in {sheet_name}")
+        return None
