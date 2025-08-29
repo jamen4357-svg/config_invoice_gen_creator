@@ -49,6 +49,8 @@ class FooterInfo:
     formula_columns: List[int] = None
     total_text_column: Optional[int] = None  # Column where "TOTAL:" text is found
     total_text_value: Optional[str] = None   # Actual text found ("TOTAL:" or "TOTAL OF:")
+    pallet_count_column: Optional[int] = None  # Column where pallet count is found
+    pallet_count_value: Optional[str] = None   # Actual pallet text found ("8 PALLETS", etc.)
     
     def __post_init__(self):
         """Validate footer data after initialization."""

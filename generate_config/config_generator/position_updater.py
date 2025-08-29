@@ -673,7 +673,10 @@ class PositionUpdater:
                 print(f"🔍 [FOOTER_CONFIG] Sheet '{sheet_name}' not found in quantity data, skipping")
                 continue
             
-            # Check if sheet has footer info with total text column
+            # Check if sheet has footer info with total text column or pallet count column
+            footer_updates = {}
+            
+            # Handle total text column
             if hasattr(sheet_data, 'footer_info') and sheet_data.footer_info and sheet_data.footer_info.total_text_column:
                 total_text_column = sheet_data.footer_info.total_text_column
                 total_text_value = sheet_data.footer_info.total_text_value
@@ -684,19 +687,38 @@ class PositionUpdater:
                 correct_column_id = self._map_excel_column_to_column_id(sheet_config, total_text_column, sheet_name)
                 
                 if correct_column_id:
-                    # Update footer configuration
-                    footer_config = sheet_config.get('footer_configurations', {})
-                    old_column_id = footer_config.get('total_text_column_id', 'none')
-                    
-                    footer_config['total_text_column_id'] = correct_column_id
-                    footer_config['total_text'] = total_text_value  # Use actual text from Excel
-                    
-                    print(f"✅ [FOOTER_CONFIG] Updated {sheet_name}: total_text_column_id: '{old_column_id}' → '{correct_column_id}'")
-                    print(f"✅ [FOOTER_CONFIG] Updated {sheet_name}: total_text: '{total_text_value}'")
+                    footer_updates['total_text_column_id'] = correct_column_id
+                    footer_updates['total_text'] = total_text_value
+                    print(f"✅ [FOOTER_CONFIG] Will update {sheet_name}: total_text_column_id → '{correct_column_id}'")
                 else:
-                    print(f"❌ [FOOTER_CONFIG] Could not map column {total_text_column} to column ID for {sheet_name}")
+                    print(f"❌ [FOOTER_CONFIG] Could not map total text column {total_text_column} to column ID for {sheet_name}")
+            
+            # Handle pallet count column
+            if hasattr(sheet_data, 'footer_info') and sheet_data.footer_info and sheet_data.footer_info.pallet_count_column:
+                pallet_count_column = sheet_data.footer_info.pallet_count_column
+                pallet_count_value = sheet_data.footer_info.pallet_count_value
+                
+                print(f"📦 [FOOTER_CONFIG] Found pallet count '{pallet_count_value}' in column {pallet_count_column} for {sheet_name}")
+                
+                # Map Excel column to column ID
+                correct_pallet_column_id = self._map_excel_column_to_column_id(sheet_config, pallet_count_column, sheet_name)
+                
+                if correct_pallet_column_id:
+                    footer_updates['pallet_count_column_id'] = correct_pallet_column_id
+                    print(f"✅ [FOOTER_CONFIG] Will update {sheet_name}: pallet_count_column_id → '{correct_pallet_column_id}'")
+                else:
+                    print(f"❌ [FOOTER_CONFIG] Could not map pallet count column {pallet_count_column} to column ID for {sheet_name}")
+            
+            # Apply updates if any were found
+            if footer_updates:
+                footer_config = sheet_config.get('footer_configurations', {})
+                
+                for key, value in footer_updates.items():
+                    old_value = footer_config.get(key, 'none')
+                    footer_config[key] = value
+                    print(f"✅ [FOOTER_CONFIG] Updated {sheet_name}: {key}: '{old_value}' → '{value}'")
             else:
-                print(f"📊 [FOOTER_CONFIG] No total text column found for {sheet_name}, skipping")
+                print(f"📊 [FOOTER_CONFIG] No footer updates needed for {sheet_name}")
     
     def _map_excel_column_to_column_id(self, sheet_config: Dict[str, Any], excel_column: int, sheet_name: str) -> Optional[str]:
         """
