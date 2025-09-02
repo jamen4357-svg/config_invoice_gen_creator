@@ -273,3 +273,101 @@ class MergeRulesUpdater:
         }
         
         return fallback_mappings.get(quantity_sheet_name.upper(), quantity_sheet_name)
+
+    def update_data_cell_merging_col(self, template: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update data_cell_merging_rule section with colspan information from header_to_write.
+        
+        This method extracts all headers with colspan > 1 from header_to_write sections
+        and adds corresponding entries to the existing data_cell_merging_rule for consistent document merging.
+        
+        Args:
+            template: Configuration template dictionary (after header_text_updater processing)
+            
+        Returns:
+            Updated template with data_cell_merging_rule enhanced with colspan data
+            
+        Raises:
+            MergeRulesUpdaterError: If template structure is invalid
+        """
+        try:
+            if not isinstance(template, dict):
+                raise MergeRulesUpdaterError("Template must be a dictionary")
+            
+            print("🔍 [MERGE_RULES_UPDATER] Updating data_cell_merging_rule with colspan from header_to_write...")
+            
+            # Create deep copy to avoid modifying original template
+            updated_template = copy.deepcopy(template)
+            
+            # Process each sheet in the template
+            data_mapping = updated_template.get('data_mapping', {})
+            
+            for sheet_name, sheet_config in data_mapping.items():
+                if not isinstance(sheet_config, dict):
+                    continue
+                
+                print(f"🔍 [MERGE_RULES_UPDATER] Processing sheet: {sheet_name}")
+                
+                # Get header_to_write section
+                headers_to_write = sheet_config.get('header_to_write', [])
+                if not headers_to_write:
+                    print(f"⚠️ [MERGE_RULES_UPDATER] No header_to_write found for {sheet_name}")
+                    continue
+                
+                # Extract colspan information from headers
+                colspan_rules = self._extract_colspan_from_headers(headers_to_write, sheet_name)
+                
+                # Update existing data_cell_merging_rule section
+                if colspan_rules:
+                    # Get existing data_cell_merging_rule or create new one
+                    existing_merge_rules = sheet_config.get('data_cell_merging_rule', {})
+                    
+                    # Merge colspan rules with existing rules
+                    for col_id, colspan_rule in colspan_rules.items():
+                        if col_id in existing_merge_rules:
+                            # Update existing rule with colspan
+                            existing_merge_rules[col_id].update(colspan_rule)
+                        else:
+                            # Add new rule
+                            existing_merge_rules[col_id] = colspan_rule
+                    
+                    sheet_config['data_cell_merging_rule'] = existing_merge_rules
+                    print(f"✅ [MERGE_RULES_UPDATER] Updated {sheet_name} data_cell_merging_rule with colspan: {colspan_rules}")
+                else:
+                    print(f"ℹ️ [MERGE_RULES_UPDATER] No colspan rules found for {sheet_name}")
+            
+            return updated_template
+            
+        except Exception as e:
+            if isinstance(e, MergeRulesUpdaterError):
+                raise
+            raise MergeRulesUpdaterError(f"Data cell merging rule update failed: {str(e)}") from e
+
+    def _extract_colspan_from_headers(self, headers_to_write: List[Dict[str, Any]], sheet_name: str) -> Dict[str, Dict[str, int]]:
+        """
+        Extract colspan information from header_to_write entries.
+        
+        Args:
+            headers_to_write: List of header dictionaries from header_to_write
+            sheet_name: Name of the sheet for logging
+            
+        Returns:
+            Dictionary mapping column IDs to their colspan rules in data_cell_merging_rule format
+        """
+        colspan_rules = {}
+        
+        for header in headers_to_write:
+            if not isinstance(header, dict):
+                continue
+            
+            # Get header properties
+            header_id = header.get('id')
+            colspan = header.get('colspan', 1)
+            header_text = header.get('text', 'N/A')
+            
+            # Only include headers with colspan > 1 and valid ID
+            if header_id and colspan > 1:
+                colspan_rules[header_id] = {'rowspan': colspan}
+                print(f"🎯 [MERGE_RULES_UPDATER] {sheet_name}: Found colspan rule '{header_text}' ({header_id}) → colspan: {colspan}")
+        
+        return colspan_rules

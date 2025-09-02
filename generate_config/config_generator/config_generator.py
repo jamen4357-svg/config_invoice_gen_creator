@@ -178,6 +178,7 @@ class ConfigGenerator:
         4. Update start_row and column positions (includes row heights)
         5. Update number formats in styling sections
         6. Update data cell merging rules
+        7. Update data_cell_merging_rule with colspan from headers
         
         Args:
             template_config: Base template configuration
@@ -244,6 +245,10 @@ class ConfigGenerator:
             # Step 3f: Update data cell merging rules
             self.logger.debug("Updating data cell merging rules")
             updated_config = self.merge_rules_updater.update_data_cell_merging_rules(updated_config, quantity_data)
+            
+            # Step 3g: Update data_cell_merging_rule with colspan from headers
+            self.logger.debug("Updating data_cell_merging_rule with colspan from headers")
+            updated_config = self.merge_rules_updater.update_data_cell_merging_col(updated_config)
             
             self.logger.debug("All configuration updates completed")
             return updated_config
