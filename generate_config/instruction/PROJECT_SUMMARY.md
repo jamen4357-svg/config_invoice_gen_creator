@@ -35,7 +35,7 @@ ConfigGenerator (Main Orchestrator)
 ├── MappingManager (Handle all mappings)
 ├── HeaderTextUpdater (Update header texts)
 ├── FontUpdater (Update font information)
-├── PositionUpdater (Update positions)
+├── RowDataUpdater (Update row data)
 └── ConfigWriter (Write final configuration)
 ```
 

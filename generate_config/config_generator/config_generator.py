@@ -13,7 +13,7 @@ from .quantity_data_loader import QuantityDataLoader, QuantityDataLoaderError
 from .header_text_updater import HeaderTextUpdater
 from .header_layout_updater import HeaderLayoutUpdater
 from .font_updater import FontUpdater
-from .position_updater import PositionUpdater
+from .row_data_updater import RowDataUpdater
 from .style_updater import StyleUpdater
 from .merge_rules_updater import MergeRulesUpdater
 from .config_writer import ConfigWriter, ConfigWriterError
@@ -51,7 +51,7 @@ class ConfigGenerator:
         self.header_layout_updater = HeaderLayoutUpdater()
         print("✅ [CONFIG_GENERATOR] HeaderLayoutUpdater initialized")
         self.font_updater = FontUpdater()
-        self.position_updater = PositionUpdater()
+        self.position_updater = RowDataUpdater()
         self.style_updater = StyleUpdater()
         self.merge_rules_updater = MergeRulesUpdater()
         self.config_writer = ConfigWriter()

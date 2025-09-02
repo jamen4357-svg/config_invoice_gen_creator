@@ -1,22 +1,22 @@
 """
-Unit tests for PositionUpdater component.
+Unit tests for RowDataUpdater component.
 
-Tests the functionality of updating start_row values and column positions
-in configuration templates while preserving rowspan/colspan attributes.
+Tests the functionality of updating start_row values and row heights
+in configuration templates.
 """
 
 import pytest
 import copy
-from config_generator.position_updater import PositionUpdater
+from config_generator.row_data_updater import RowDataUpdater
 from config_generator.models import QuantityAnalysisData, SheetData, HeaderPosition, FontInfo
 
 
-class TestPositionUpdater:
-    """Test cases for PositionUpdater component."""
+class TestRowDataUpdater:
+    """Test cases for RowDataUpdater component."""
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.updater = PositionUpdater()
+        self.updater = RowDataUpdater()
         
         # Sample template data
         self.sample_template = {
@@ -207,26 +207,26 @@ class TestPositionUpdater:
     
     def test_update_start_rows_invalid_template(self):
         """Test error handling for invalid template."""
-        from config_generator.position_updater import PositionUpdaterError
-        with pytest.raises(PositionUpdaterError, match="Template must be a dictionary"):
+        from config_generator.row_data_updater import RowDataUpdaterError
+        with pytest.raises(RowDataUpdaterError, match="Template must be a dictionary"):
             self.updater.update_start_rows("invalid", self.sample_quantity_data)
     
     def test_update_start_rows_invalid_quantity_data(self):
         """Test error handling for invalid quantity data."""
-        from config_generator.position_updater import PositionUpdaterError
-        with pytest.raises(PositionUpdaterError, match="Quantity data must be QuantityAnalysisData instance"):
+        from config_generator.row_data_updater import RowDataUpdaterError
+        with pytest.raises(RowDataUpdaterError, match="Quantity data must be QuantityAnalysisData instance"):
             self.updater.update_start_rows(self.sample_template, "invalid")
     
     def test_update_column_positions_invalid_template(self):
         """Test error handling for invalid template."""
-        from config_generator.position_updater import PositionUpdaterError
-        with pytest.raises(PositionUpdaterError, match="Template must be a dictionary"):
+        from config_generator.row_data_updater import RowDataUpdaterError
+        with pytest.raises(RowDataUpdaterError, match="Template must be a dictionary"):
             self.updater.update_column_positions("invalid", self.sample_quantity_data)
     
     def test_update_column_positions_invalid_quantity_data(self):
         """Test error handling for invalid quantity data."""
-        from config_generator.position_updater import PositionUpdaterError
-        with pytest.raises(PositionUpdaterError, match="Quantity data must be QuantityAnalysisData instance"):
+        from config_generator.row_data_updater import RowDataUpdaterError
+        with pytest.raises(RowDataUpdaterError, match="Quantity data must be QuantityAnalysisData instance"):
             self.updater.update_column_positions(self.sample_template, "invalid")
     
     def test_update_start_rows_missing_sheet(self):

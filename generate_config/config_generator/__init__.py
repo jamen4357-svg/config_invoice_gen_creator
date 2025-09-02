@@ -9,7 +9,7 @@ from .template_loader import TemplateLoader
 from .quantity_data_loader import QuantityDataLoader
 from .header_text_updater import HeaderTextUpdater
 from .font_updater import FontUpdater
-from .position_updater import PositionUpdater
+from .row_data_updater import RowDataUpdater
 from .models import (
     QuantityAnalysisData, SheetData, HeaderPosition, FontInfo,
     ConfigurationData, SheetConfig, HeaderEntry
@@ -23,7 +23,7 @@ __all__ = [
     'QuantityDataLoader', 
     'HeaderTextUpdater',
     'FontUpdater',
-    'PositionUpdater',
+    'RowDataUpdater',
     'QuantityAnalysisData',
     'SheetData',
     'HeaderPosition',

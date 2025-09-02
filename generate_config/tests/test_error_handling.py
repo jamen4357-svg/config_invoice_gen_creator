@@ -16,7 +16,7 @@ from config_generator.template_loader import TemplateLoader, TemplateLoaderError
 from config_generator.quantity_data_loader import QuantityDataLoader, QuantityDataLoaderError
 from config_generator.header_text_updater import HeaderTextUpdater, HeaderTextUpdaterError
 from config_generator.font_updater import FontUpdater, FontUpdaterError
-from config_generator.position_updater import PositionUpdater, PositionUpdaterError
+from config_generator.row_data_updater import RowDataUpdater, RowDataUpdaterError
 from config_generator.config_writer import ConfigWriter, ConfigWriterError
 from config_generator.models import QuantityAnalysisData, SheetData, HeaderPosition, FontInfo
 
@@ -31,7 +31,7 @@ class TestErrorHandling(unittest.TestCase):
         self.quantity_data_loader = QuantityDataLoader()
         self.header_text_updater = HeaderTextUpdater()
         self.font_updater = FontUpdater()
-        self.position_updater = PositionUpdater()
+        self.position_updater = RowDataUpdater()
         self.config_writer = ConfigWriter()
         
         # Sample valid data for testing
@@ -208,23 +208,23 @@ class TestErrorHandling(unittest.TestCase):
         self.assertIn("missing header_font data", str(context.exception))
     
     def test_position_updater_invalid_template_structure(self):
-        """Test PositionUpdater with invalid template structure."""
+        """Test RowDataUpdater with invalid template structure."""
         invalid_template = {"invalid": "structure"}
         
-        with self.assertRaises(PositionUpdaterError) as context:
+        with self.assertRaises(RowDataUpdaterError) as context:
             self.position_updater.update_start_rows(invalid_template, self.valid_quantity_data)
         
         self.assertIn("Template missing 'data_mapping' section", str(context.exception))
     
     def test_position_updater_invalid_quantity_data(self):
-        """Test PositionUpdater with invalid quantity data."""
-        with self.assertRaises(PositionUpdaterError) as context:
+        """Test RowDataUpdater with invalid quantity data."""
+        with self.assertRaises(RowDataUpdaterError) as context:
             self.position_updater.update_start_rows(self.valid_template, "invalid")
         
         self.assertIn("Quantity data must be QuantityAnalysisData instance", str(context.exception))
     
     def test_position_updater_invalid_start_row_data(self):
-        """Test PositionUpdater with invalid start row data."""
+        """Test RowDataUpdater with invalid start row data."""
         # The model validation will catch this before it gets to the updater
         with self.assertRaises(ValueError) as context:
             invalid_quantity_data = QuantityAnalysisData(

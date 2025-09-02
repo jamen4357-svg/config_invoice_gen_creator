@@ -44,7 +44,7 @@ All notable changes to the Config Generator project.
 - **Architecture**: Modular design with specialized updater components
   - `HeaderTextUpdater`: Handles header text updates
   - `FontUpdater`: Handles font information updates  
-  - `PositionUpdater`: Handles start row and column position updates
+  - `RowDataUpdater`: Handles start row and row height updates
   - `MappingManager`: Centralized mapping management
 
 - **Configuration Management**: 
