@@ -1,0 +1,183 @@
+{
+  "file_path": "C:\\Users\\JPZ031127\\Desktop\\config_gen\\config_data_extractor\\CT&INV&PL MT2-25005E DAP.xlsx",
+  "timestamp": "2025-09-02T13:36:06.408285",
+  "sheets": [
+    {
+      "sheet_name": "Contract",
+      "header_font": {
+        "name": "Times New Roman",
+        "size": 16.0
+      },
+      "data_font": {
+        "name": "Times New Roman",
+        "size": 14.0
+      },
+      "start_row": 15,
+      "header_positions": [
+        {
+          "keyword": "No.",
+          "row": 15,
+          "column": 1
+        },
+        {
+          "keyword": "P.O. N\u00ba",
+          "row": 15,
+          "column": 2
+        },
+        {
+          "keyword": "Name of\nCormodity",
+          "row": 15,
+          "column": 3
+        },
+        {
+          "keyword": "Description",
+          "row": 15,
+          "column": 4
+        },
+        {
+          "keyword": "Quantity\n(SF)",
+          "row": 15,
+          "column": 5
+        },
+        {
+          "keyword": "Unit Price\n(USD)",
+          "row": 15,
+          "column": 6
+        },
+        {
+          "keyword": "Total value\n(USD)",
+          "row": 15,
+          "column": 7
+        }
+      ]
+    },
+    {
+      "sheet_name": "Invoice",
+      "header_font": {
+        "name": "Times New Roman",
+        "size": 12.0
+      },
+      "data_font": {
+        "name": "Times New Roman",
+        "size": 12.0
+      },
+      "start_row": 21,
+      "header_positions": [
+        {
+          "keyword": "Mark & N\u00ba",
+          "row": 21,
+          "column": 1
+        },
+        {
+          "keyword": "P.O. N\u00ba",
+          "row": 21,
+          "column": 2
+        },
+        {
+          "keyword": "ITEM N\u00ba",
+          "row": 21,
+          "column": 3
+        },
+        {
+          "keyword": "Description",
+          "row": 21,
+          "column": 4
+        },
+        {
+          "keyword": "Quantity\n(SF)",
+          "row": 21,
+          "column": 5
+        },
+        {
+          "keyword": "Unit Price\n(USD)",
+          "row": 21,
+          "column": 6
+        },
+        {
+          "keyword": "Amount(USD)",
+          "row": 21,
+          "column": 7
+        }
+      ]
+    },
+    {
+      "sheet_name": "Packing list",
+      "header_font": {
+        "name": "Times New Roman",
+        "size": 12.0
+      },
+      "data_font": {
+        "name": "Times New Roman",
+        "size": 12.0
+      },
+      "start_row": 20,
+      "header_positions": [
+        {
+          "keyword": "Mark & N\u00ba",
+          "row": 20,
+          "column": 1
+        },
+        {
+          "keyword": "PALLET\nNO.",
+          "row": 20,
+          "column": 2
+        },
+        {
+          "keyword": "P.O N\u00ba",
+          "row": 20,
+          "column": 3
+        },
+        {
+          "keyword": "ITEM N\u00ba",
+          "row": 20,
+          "column": 4
+        },
+        {
+          "keyword": "Description",
+          "row": 20,
+          "column": 5
+        },
+        {
+          "keyword": "Quantity",
+          "row": 20,
+          "column": 6
+        },
+        {
+          "keyword": "N.W (kgs)",
+          "row": 20,
+          "column": 8
+        },
+        {
+          "keyword": "G.W (kgs)",
+          "row": 20,
+          "column": 9
+        },
+        {
+          "keyword": "CBM",
+          "row": 20,
+          "column": 10
+        },
+        {
+          "keyword": "PCS",
+          "row": 21,
+          "column": 6
+        },
+        {
+          "keyword": "SF",
+          "row": 21,
+          "column": 7
+        },
+        {
+          "keyword": "PCS",
+          "row": 21,
+          "column": 6
+        },
+        {
+          "keyword": "SF",
+          "row": 21,
+          "column": 7
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 """
-PositionUpdater component for updating start_row and column positions in configuration templates.
+PositionUpdater component for updating start_row and row heights in configuration templates.
 
-This module provides functionality to update start_row values and column positions in
-header_to_write sections while preserving rowspan/colspan attributes and template structure.
+This module provides functionality to update start_row values and row heights in
+header_to_write sections while preserving template structure.
+
+NOTE: Column positions are now handled by HeaderLayoutUpdater.
 """
 
 from typing import Dict, List, Any, Optional
@@ -17,7 +19,7 @@ class PositionUpdaterError(Exception):
 
 
 class PositionUpdater:
-    """Updates start_row and column positions in configuration templates."""
+    """Updates start_row and row heights in configuration templates."""
     
     def __init__(self, mapping_config_path: str = "mapping_config.json"):
         """Initialize PositionUpdater with mapping manager."""
@@ -123,75 +125,23 @@ class PositionUpdater:
                 raise
             raise PositionUpdaterError(f"Start row update failed: {str(e)}") from e
     
-    def update_column_positions(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData) -> Dict[str, Any]:
+    def _validate_template_structure(self, template: Dict[str, Any]) -> None:
         """
-        Update column positions in header_to_write sections while preserving rowspan/colspan.
+        Validate that the template has the required structure.
         
         Args:
-            template: Configuration template dictionary
-            quantity_data: Quantity analysis data containing header positions
-            
-        Returns:
-            Updated template with column positions adjusted
+            template: Template dictionary to validate
             
         Raises:
-            PositionUpdaterError: If template structure is invalid or update fails
+            PositionUpdaterError: If template structure is invalid
         """
-        print(f"🔍 [POSITION_UPDATER] Starting column position updates...")
+        required_keys = ['data_mapping']
+        for key in required_keys:
+            if key not in template:
+                raise PositionUpdaterError(f"Template missing required key: {key}")
         
-        try:
-            if not isinstance(template, dict):
-                raise PositionUpdaterError("Template must be a dictionary")
-            
-            if not isinstance(quantity_data, QuantityAnalysisData):
-                raise PositionUpdaterError("Quantity data must be QuantityAnalysisData instance")
-            
-            # Validate template structure
-            self._validate_template_structure(template)
-            
-            # Create deep copy to avoid modifying original template
-            updated_template = copy.deepcopy(template)
-            
-            # Process each sheet in the template
-            data_mapping = updated_template.get('data_mapping', {})
-            
-            # Track sheets with missing position data
-            missing_position_sheets = []
-            
-            for sheet_data in quantity_data.sheets:
-                quantity_sheet_name = sheet_data.sheet_name
-                mapped_sheet_name = self._map_sheet_name(quantity_sheet_name)
-                
-                print(f"🔍 [POSITION_UPDATER] Processing sheet: {quantity_sheet_name} -> {mapped_sheet_name}")
-                
-                if mapped_sheet_name not in data_mapping:
-                    missing_position_sheets.append(f"{quantity_sheet_name} -> {mapped_sheet_name}")
-                    continue
-                
-                # Validate header positions data
-                self._validate_header_positions_data(sheet_data, quantity_sheet_name)
-                    
-                sheet_config = data_mapping[mapped_sheet_name]
-                header_to_write = sheet_config.get('header_to_write', [])
-                
-                print(f"🔍 [POSITION_UPDATER] {mapped_sheet_name}: Processing {len(header_to_write)} headers")
-                
-                # Update column positions for this sheet
-                self._update_sheet_column_positions_with_validation(header_to_write, sheet_data.header_positions, mapped_sheet_name)
-            
-            # Apply fallback strategies for missing position data
-            if missing_position_sheets:
-                self._apply_position_fallback_strategies(updated_template, missing_position_sheets)
-            
-            print(f"✅ [POSITION_UPDATER] Column position updates completed")
-            return updated_template
-            
-        except Exception as e:
-            if isinstance(e, PositionUpdaterError):
-                raise
-            raise PositionUpdaterError(f"Column position update failed: {str(e)}") from e
-    
-
+        if not isinstance(template['data_mapping'], dict):
+            raise PositionUpdaterError("Template 'data_mapping' must be a dictionary")
     
     def _map_sheet_name(self, quantity_sheet_name: str) -> str:
         """
@@ -219,62 +169,6 @@ class PositionUpdater:
         
         return fallback_mappings.get(quantity_sheet_name.upper(), quantity_sheet_name)
     
-    def _normalize_header_text(self, text: str) -> str:
-        """
-        Normalize header text for comparison by removing special characters and whitespace.
-        
-        Args:
-            text: Header text to normalize
-            
-        Returns:
-            Normalized text string
-        """
-        if not isinstance(text, str):
-            return ''
-        
-        # Remove common variations and normalize
-        normalized = text.lower().strip()
-        
-        # Replace common character variations
-        normalized = normalized.replace('º', '°').replace('nº', 'n°')
-        normalized = normalized.replace('\n', ' ').replace('  ', ' ')
-        
-        # Remove punctuation for better matching
-        normalized = normalized.replace('.', '').replace('&', 'and')
-        
-        return normalized
-    
-
-    
-    def _validate_template_structure(self, template: Dict[str, Any]) -> None:
-        """
-        Validate template structure for position updates.
-        
-        Args:
-            template: Template dictionary to validate
-            
-        Raises:
-            PositionUpdaterError: If template structure is invalid
-        """
-        if 'data_mapping' not in template:
-            raise PositionUpdaterError("Template missing 'data_mapping' section")
-        
-        data_mapping = template['data_mapping']
-        if not isinstance(data_mapping, dict):
-            raise PositionUpdaterError("Template 'data_mapping' must be a dictionary")
-        
-        # Validate each sheet configuration
-        for sheet_name, sheet_config in data_mapping.items():
-            if not isinstance(sheet_config, dict):
-                raise PositionUpdaterError(f"Sheet config for '{sheet_name}' must be a dictionary")
-            
-            if 'header_to_write' not in sheet_config:
-                raise PositionUpdaterError(f"Sheet '{sheet_name}' missing 'header_to_write' section")
-            
-            header_to_write = sheet_config['header_to_write']
-            if not isinstance(header_to_write, list):
-                raise PositionUpdaterError(f"'header_to_write' for sheet '{sheet_name}' must be a list")
-    
     def _validate_start_row_data(self, sheet_data, sheet_name: str) -> None:
         """
         Validate start row data from quantity analysis.
@@ -292,223 +186,6 @@ class PositionUpdater:
         if not isinstance(sheet_data.start_row, int) or sheet_data.start_row < 0:
             raise PositionUpdaterError(f"Sheet '{sheet_name}' start_row must be a non-negative integer")
     
-    def _validate_header_positions_data(self, sheet_data, sheet_name: str) -> None:
-        """
-        Validate header positions data from quantity analysis.
-        
-        Args:
-            sheet_data: Sheet data containing header positions
-            sheet_name: Name of the sheet for error messages
-            
-        Raises:
-            PositionUpdaterError: If header positions data is invalid
-        """
-        if not hasattr(sheet_data, 'header_positions'):
-            raise PositionUpdaterError(f"Sheet '{sheet_name}' missing header_positions data")
-        
-        if not isinstance(sheet_data.header_positions, list):
-            raise PositionUpdaterError(f"Sheet '{sheet_name}' header_positions must be a list")
-        
-        for i, header_pos in enumerate(sheet_data.header_positions):
-            if not isinstance(header_pos, HeaderPosition):
-                raise PositionUpdaterError(f"Sheet '{sheet_name}' header_position {i} must be HeaderPosition instance")
-    
-    def _update_sheet_column_positions_with_validation(self, header_to_write: List[Dict[str, Any]], 
-                                                     header_positions: List[HeaderPosition], sheet_name: str) -> None:
-        """
-        Update column positions for a single sheet while preserving spans with validation.
-        
-        Args:
-            header_to_write: List of header entries to update
-            header_positions: Header positions from quantity analysis
-            sheet_name: Name of the sheet for error messages
-            
-        Raises:
-            PositionUpdaterError: If update fails
-        """
-        try:
-            # Validate inputs
-            if not isinstance(header_to_write, list):
-                raise PositionUpdaterError(f"header_to_write for sheet '{sheet_name}' must be a list")
-            
-            if not isinstance(header_positions, list):
-                raise PositionUpdaterError(f"header_positions for sheet '{sheet_name}' must be a list")
-            
-            # Create mapping of header text to column positions from analysis data
-            text_to_position = {}
-            
-            for i, header_pos in enumerate(header_positions):
-                if not isinstance(header_pos, HeaderPosition):
-                    raise PositionUpdaterError(f"header_position {i} for sheet '{sheet_name}' must be HeaderPosition instance")
-                
-                if not hasattr(header_pos, 'keyword') or not header_pos.keyword:
-                    continue  # Skip invalid keywords
-                
-                if not hasattr(header_pos, 'column') or not isinstance(header_pos.column, int):
-                    continue  # Skip invalid column data
-                
-                text_to_position[header_pos.keyword] = {
-                    'row': getattr(header_pos, 'row', 0),
-                    'column': header_pos.column
-                }
-            
-            # Update header_to_write entries with actual column positions
-            for i, header_entry in enumerate(header_to_write):
-                if not isinstance(header_entry, dict):
-                    raise PositionUpdaterError(f"header_entry {i} for sheet '{sheet_name}' must be a dictionary")
-                
-                if 'text' not in header_entry:
-                    continue  # Skip entries without text
-                
-                header_text = header_entry['text']
-                
-                # Look for exact match first
-                if header_text in text_to_position:
-                    position = text_to_position[header_text]
-                    # Validate column position before updating
-                    if isinstance(position['column'], int) and position['column'] >= 0:
-                        header_entry['col'] = position['column'] - 1  # Convert to 0-based indexing
-                else:
-                    # Try to find similar header text (case-insensitive, normalized)
-                    normalized_text = self._normalize_header_text(header_text)
-                    
-                    for analysis_text, position in text_to_position.items():
-                        normalized_analysis = self._normalize_header_text(analysis_text)
-                        
-                        if normalized_text == normalized_analysis:
-                            if isinstance(position['column'], int) and position['column'] >= 0:
-                                header_entry['col'] = position['column'] - 1  # Convert to 0-based indexing
-                            break
-                            
-        except Exception as e:
-            if isinstance(e, PositionUpdaterError):
-                raise
-            raise PositionUpdaterError(f"Failed to update column positions for sheet '{sheet_name}': {str(e)}") from e
-
-        # CRITICAL: Apply overlap detection and resolution after position updates
-        self._resolve_column_overlaps(header_to_write, sheet_name)
-    
-    def _resolve_column_overlaps(self, header_to_write: List[Dict[str, Any]], sheet_name: str) -> None:
-        """
-        Detect and resolve column overlaps in header configurations.
-        
-        This method ensures that headers with colspan don't overlap with other headers
-        by recalculating column positions sequentially when overlaps are detected.
-        
-        Args:
-            header_to_write: List of header configuration entries
-            sheet_name: Name of the sheet for logging
-        """
-        if not header_to_write:
-            return
-            
-        # Group headers by row for overlap detection
-        headers_by_row = {}
-        for header in header_to_write:
-            if not isinstance(header, dict) or 'row' not in header or 'col' not in header:
-                continue
-                
-            row = header['row']
-            if row not in headers_by_row:
-                headers_by_row[row] = []
-            headers_by_row[row].append(header)
-        
-        overlaps_detected = False
-        
-        # Check each row for overlaps
-        for row, headers in headers_by_row.items():
-            if len(headers) <= 1:
-                continue
-                
-            # Sort headers by column position
-            headers.sort(key=lambda h: h['col'])
-            
-            # Check for overlaps and resolve them
-            for i in range(len(headers) - 1):
-                current_header = headers[i]
-                next_header = headers[i + 1]
-                
-                current_col = current_header['col']
-                current_colspan = current_header.get('colspan', 1)
-                current_end = current_col + current_colspan - 1
-                
-                next_col = next_header['col']
-                
-                # Check if current header overlaps with next header
-                if current_end >= next_col:
-                    overlaps_detected = True
-                    new_next_col = current_end + 1
-                    print(f"📍 [POSITION_UPDATER] {sheet_name}: Overlap detected! Moving '{next_header.get('text', 'Unknown')}' from col {next_col} → col {new_next_col}")
-                    next_header['col'] = new_next_col
-                    
-                    # Cascade the position changes to subsequent headers
-                    self._cascade_position_changes(headers, i + 1, sheet_name)
-        
-        if overlaps_detected:
-            print(f"✅ [POSITION_UPDATER] {sheet_name}: All column overlaps resolved")
-    
-    def _cascade_position_changes(self, headers: List[Dict[str, Any]], start_index: int, sheet_name: str) -> None:
-        """
-        Cascade position changes to subsequent headers to maintain proper spacing.
-        
-        Args:
-            headers: List of headers sorted by column position
-            start_index: Index to start cascading from
-            sheet_name: Name of the sheet for logging
-        """
-        for i in range(start_index, len(headers) - 1):
-            current_header = headers[i]
-            next_header = headers[i + 1]
-            
-            current_col = current_header['col']
-            current_colspan = current_header.get('colspan', 1)
-            current_end = current_col + current_colspan - 1
-            
-            next_col = next_header['col']
-            
-            # If the next header would overlap, move it
-            if current_end >= next_col:
-                new_next_col = current_end + 1
-                print(f"📍 [POSITION_UPDATER] {sheet_name}: Cascading move '{next_header.get('text', 'Unknown')}' from col {next_col} → col {new_next_col}")
-                next_header['col'] = new_next_col
-    
-    def _apply_start_row_fallback_strategies(self, template: Dict[str, Any], missing_sheets: List[str]) -> None:
-        """
-        Apply fallback strategies for sheets with missing start row data.
-        
-        Args:
-            template: Template dictionary to update
-            missing_sheets: List of sheet names missing start row data
-        """
-        if not missing_sheets:
-            return
-        
-        # Log missing start row data for manual review
-        print(f"Warning: Missing start row data for sheets: {missing_sheets}")
-        
-        # Use default start row mappings as fallback
-        data_mapping = template.get('data_mapping', {})
-        
-        for sheet_name in missing_sheets:
-            if sheet_name in data_mapping and sheet_name in self.start_row_mappings:
-                data_mapping[sheet_name]['start_row'] = self.start_row_mappings[sheet_name]
-    
-    def _apply_position_fallback_strategies(self, template: Dict[str, Any], missing_sheets: List[str]) -> None:
-        """
-        Apply fallback strategies for sheets with missing position data.
-        
-        Args:
-            template: Template dictionary to update
-            missing_sheets: List of sheet names missing position data
-        """
-        if not missing_sheets:
-            return
-        
-        # Log missing position data for manual review
-        print(f"Warning: Missing position data for sheets: {missing_sheets}")
-        
-        # Keep existing column positions as fallback (no changes needed) 
-   
     def update_row_heights(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData) -> Dict[str, Any]:
         """
         Update row_heights in styling sections using actual Excel row heights.
