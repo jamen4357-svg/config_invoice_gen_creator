@@ -38,14 +38,15 @@ class PositionUpdater:
     
     def update_positions(self, template: Dict[str, Any], quantity_data: QuantityAnalysisData) -> Dict[str, Any]:
         """
-        Update both start_row values and row heights using analysis data.
+        Update start_row values and row heights using analysis data.
+        NOTE: Column positions are now handled by HeaderLayoutUpdater.
         
         Args:
             template: Configuration template dictionary
             quantity_data: Quantity analysis data containing position information
             
         Returns:
-            Updated template with positions and row heights updated
+            Updated template with start_row and row heights updated
             
         Raises:
             PositionUpdaterError: If template structure is invalid or update fails
@@ -53,7 +54,7 @@ class PositionUpdater:
         # First update start rows
         updated_template = self.update_start_rows(template, quantity_data)
         
-        # Then update row heights
+        # Then update row heights (column positions are handled by HeaderLayoutUpdater)
         updated_template = self.update_row_heights(updated_template, quantity_data)
         
         return updated_template
@@ -136,6 +137,8 @@ class PositionUpdater:
         Raises:
             PositionUpdaterError: If template structure is invalid or update fails
         """
+        print(f"🔍 [POSITION_UPDATER] Starting column position updates...")
+        
         try:
             if not isinstance(template, dict):
                 raise PositionUpdaterError("Template must be a dictionary")
@@ -159,6 +162,8 @@ class PositionUpdater:
                 quantity_sheet_name = sheet_data.sheet_name
                 mapped_sheet_name = self._map_sheet_name(quantity_sheet_name)
                 
+                print(f"🔍 [POSITION_UPDATER] Processing sheet: {quantity_sheet_name} -> {mapped_sheet_name}")
+                
                 if mapped_sheet_name not in data_mapping:
                     missing_position_sheets.append(f"{quantity_sheet_name} -> {mapped_sheet_name}")
                     continue
@@ -169,6 +174,8 @@ class PositionUpdater:
                 sheet_config = data_mapping[mapped_sheet_name]
                 header_to_write = sheet_config.get('header_to_write', [])
                 
+                print(f"🔍 [POSITION_UPDATER] {mapped_sheet_name}: Processing {len(header_to_write)} headers")
+                
                 # Update column positions for this sheet
                 self._update_sheet_column_positions_with_validation(header_to_write, sheet_data.header_positions, mapped_sheet_name)
             
@@ -176,6 +183,7 @@ class PositionUpdater:
             if missing_position_sheets:
                 self._apply_position_fallback_strategies(updated_template, missing_position_sheets)
             
+            print(f"✅ [POSITION_UPDATER] Column position updates completed")
             return updated_template
             
         except Exception as e:
@@ -376,6 +384,93 @@ class PositionUpdater:
             if isinstance(e, PositionUpdaterError):
                 raise
             raise PositionUpdaterError(f"Failed to update column positions for sheet '{sheet_name}': {str(e)}") from e
+
+        # CRITICAL: Apply overlap detection and resolution after position updates
+        self._resolve_column_overlaps(header_to_write, sheet_name)
+    
+    def _resolve_column_overlaps(self, header_to_write: List[Dict[str, Any]], sheet_name: str) -> None:
+        """
+        Detect and resolve column overlaps in header configurations.
+        
+        This method ensures that headers with colspan don't overlap with other headers
+        by recalculating column positions sequentially when overlaps are detected.
+        
+        Args:
+            header_to_write: List of header configuration entries
+            sheet_name: Name of the sheet for logging
+        """
+        if not header_to_write:
+            return
+            
+        # Group headers by row for overlap detection
+        headers_by_row = {}
+        for header in header_to_write:
+            if not isinstance(header, dict) or 'row' not in header or 'col' not in header:
+                continue
+                
+            row = header['row']
+            if row not in headers_by_row:
+                headers_by_row[row] = []
+            headers_by_row[row].append(header)
+        
+        overlaps_detected = False
+        
+        # Check each row for overlaps
+        for row, headers in headers_by_row.items():
+            if len(headers) <= 1:
+                continue
+                
+            # Sort headers by column position
+            headers.sort(key=lambda h: h['col'])
+            
+            # Check for overlaps and resolve them
+            for i in range(len(headers) - 1):
+                current_header = headers[i]
+                next_header = headers[i + 1]
+                
+                current_col = current_header['col']
+                current_colspan = current_header.get('colspan', 1)
+                current_end = current_col + current_colspan - 1
+                
+                next_col = next_header['col']
+                
+                # Check if current header overlaps with next header
+                if current_end >= next_col:
+                    overlaps_detected = True
+                    new_next_col = current_end + 1
+                    print(f"📍 [POSITION_UPDATER] {sheet_name}: Overlap detected! Moving '{next_header.get('text', 'Unknown')}' from col {next_col} → col {new_next_col}")
+                    next_header['col'] = new_next_col
+                    
+                    # Cascade the position changes to subsequent headers
+                    self._cascade_position_changes(headers, i + 1, sheet_name)
+        
+        if overlaps_detected:
+            print(f"✅ [POSITION_UPDATER] {sheet_name}: All column overlaps resolved")
+    
+    def _cascade_position_changes(self, headers: List[Dict[str, Any]], start_index: int, sheet_name: str) -> None:
+        """
+        Cascade position changes to subsequent headers to maintain proper spacing.
+        
+        Args:
+            headers: List of headers sorted by column position
+            start_index: Index to start cascading from
+            sheet_name: Name of the sheet for logging
+        """
+        for i in range(start_index, len(headers) - 1):
+            current_header = headers[i]
+            next_header = headers[i + 1]
+            
+            current_col = current_header['col']
+            current_colspan = current_header.get('colspan', 1)
+            current_end = current_col + current_colspan - 1
+            
+            next_col = next_header['col']
+            
+            # If the next header would overlap, move it
+            if current_end >= next_col:
+                new_next_col = current_end + 1
+                print(f"📍 [POSITION_UPDATER] {sheet_name}: Cascading move '{next_header.get('text', 'Unknown')}' from col {next_col} → col {new_next_col}")
+                next_header['col'] = new_next_col
     
     def _apply_start_row_fallback_strategies(self, template: Dict[str, Any], missing_sheets: List[str]) -> None:
         """

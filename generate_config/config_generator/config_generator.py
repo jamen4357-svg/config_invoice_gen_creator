@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 from .template_loader import TemplateLoader, TemplateLoaderError
 from .quantity_data_loader import QuantityDataLoader, QuantityDataLoaderError
 from .header_text_updater import HeaderTextUpdater
+from .header_layout_updater import HeaderLayoutUpdater
 from .font_updater import FontUpdater
 from .position_updater import PositionUpdater
 from .style_updater import StyleUpdater
@@ -46,6 +47,9 @@ class ConfigGenerator:
         self.template_loader = TemplateLoader()
         self.quantity_data_loader = QuantityDataLoader()
         self.header_text_updater = HeaderTextUpdater()
+        print("🔍 [CONFIG_GENERATOR] Initializing HeaderLayoutUpdater...")
+        self.header_layout_updater = HeaderLayoutUpdater()
+        print("✅ [CONFIG_GENERATOR] HeaderLayoutUpdater initialized")
         self.font_updater = FontUpdater()
         self.position_updater = PositionUpdater()
         self.style_updater = StyleUpdater()
@@ -169,10 +173,11 @@ class ConfigGenerator:
         
         This method coordinates the selective update process:
         1. Update header texts in header_to_write sections
-        2. Update font information in styling sections
-        3. Update start_row and column positions (includes row heights)
-        4. Update number formats in styling sections
-        5. Update data cell merging rules
+        2. Update header spans (colspan/rowspan) in header_to_write sections
+        3. Update font information in styling sections
+        4. Update start_row and column positions (includes row heights)
+        5. Update number formats in styling sections
+        6. Update data cell merging rules
         
         Args:
             template_config: Base template configuration
@@ -195,15 +200,40 @@ class ConfigGenerator:
             self.logger.debug("Updating header texts")
             updated_config = self.header_text_updater.update_header_texts(updated_config, quantity_data, interactive_mode)
             
-            # Step 3b: Update font information
+            # Step 3b: Update header layout (spans + positions)
+            self.logger.debug("Updating header layout (spans + positions)")
+            print("🔍 [CONFIG_GENERATOR] About to call HeaderLayoutUpdater...")
+            # Re-initialize HeaderLayoutUpdater with Excel analysis data
+            excel_analysis_data = {
+                'file_path': quantity_data.file_path,
+                'timestamp': quantity_data.timestamp,
+                'sheets': [
+                    {
+                        'sheet_name': sheet.sheet_name,
+                        'header_font': {'name': sheet.header_font.name, 'size': sheet.header_font.size},
+                        'data_font': {'name': sheet.data_font.name, 'size': sheet.data_font.size},
+                        'start_row': sheet.start_row,
+                        'header_positions': [
+                            {'keyword': pos.keyword, 'row': pos.row, 'column': pos.column}
+                            for pos in sheet.header_positions
+                        ]
+                    }
+                    for sheet in quantity_data.sheets
+                ]
+            }
+            self.header_layout_updater = HeaderLayoutUpdater(excel_analysis_data)
+            updated_config = self.header_layout_updater.update_header_layout(updated_config)
+            print("✅ [CONFIG_GENERATOR] HeaderLayoutUpdater completed")
+            
+            # Step 3c: Update font information
             self.logger.debug("Updating font information")
             updated_config = self.font_updater.update_fonts(updated_config, quantity_data)
             
-            # Step 3c: Update positions (start_row and column positions, includes row heights)
-            self.logger.debug("Updating positions and row heights")
+            # Step 3d: Update start_row and row heights (column positions handled in Step 3b)
+            self.logger.debug("Updating start_row and row heights")
             updated_config = self.position_updater.update_positions(updated_config, quantity_data)
             
-            # Step 3d: Update number formats
+            # Step 3e: Update number formats
             self.logger.debug("Updating number formats")
             # Set Excel file path for format extraction
             self.style_updater.set_excel_file_path(quantity_data.file_path)
@@ -211,7 +241,7 @@ class ConfigGenerator:
             self.style_updater.set_template_config(updated_config)
             updated_config = self.style_updater.update_number_formats(updated_config, quantity_data)
             
-            # Step 3e: Update data cell merging rules
+            # Step 3f: Update data cell merging rules
             self.logger.debug("Updating data cell merging rules")
             updated_config = self.merge_rules_updater.update_data_cell_merging_rules(updated_config, quantity_data)
             
